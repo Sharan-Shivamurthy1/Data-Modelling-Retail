@@ -33,7 +33,7 @@ Additional Features:
 
 
 
--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------
 Requirement 2:
 You and the Data Science team have created segments and the efforts from the
 team are really appreciated by stakeholders. Now the task is to operationalise
@@ -43,6 +43,6 @@ use your favorite cloud provider or tools known to you.
 
 Solution:
 
-The pipeline is operationalised using AWS. The detailed modelling diagram can be found as "Data Modelling Diagram". The diagram ""
+The pipeline is operationalised using AWS. The detailed modelling diagram can be found as "Data Modelling Diagram". The diagram "Scheduling Architecture" depicts the steps chosen for scheduling strategy.
 
-
+-----------------------------------------------------------------------------------------------------------------------------
