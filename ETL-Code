@@ -61,3 +61,96 @@ load_csv_to_snowflake(distribution_centers_csv_path, 'distribution_centers')
 
 # Close the Snowflake connection
 snowflake_conn.close()
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+sqlalchemy creates the tables and its structure in snowflake dynamically. Optionally, the tables can also be created manually before loading the data(using the above python script)
+as below:
+In Snowflake:
+CREATE TABLE users (
+    id INT,
+    first_name STRING,
+    last_name STRING,
+    email STRING,
+    age INT,
+    gender STRING,
+    state STRING,
+    street_address STRING,
+    postal_code STRING,
+    city STRING,
+    country STRING,
+    latitude FLOAT,
+    longitude FLOAT,
+    traffic_source STRING,
+    created_at TIMESTAMP
+);
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+COPY INTO users FROM 'staging_schema_name/users.csv'
+FILE_FORMAT = (TYPE = 'CSV' SKIP_HEADER = 1);
+
+
+Similarly, the other tables for events, orders, order_items, products, inventory and distribution_centers can be created in snowflake.
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Script for incremental load:
+
+import pandas as pd
+from snowflake.connector.pandas_tools import write_pandas
+from snowflake.connector import connect
+
+# Set pandas display options
+pd.set_option('display.max_rows', None)
+pd.set_option('display.max_columns', None)
+
+# Snowflake connection parameters
+conn_params = {
+    'account': 'our account',
+    'user': 'our user',
+    'password': 'our password',
+    'warehouse': 'our warehouse',
+    'database': 'our database',
+    'schema': 'our schema'
+}
+
+# CSV file paths
+csv_files = {
+    'users.csv': ('users', 'created_at'),
+    'orders.csv': ('orders', 'created_at'),
+    'order_items.csv': ('order_items', 'created_at'),
+    'products.csv': ('products', 'created_at'),
+    'events.csv': ('events', 'sequence_number'),
+    'inventory_items.csv': ('inventory_items', 'created_at'),
+    'distribution_centers.csv': ('distribution_centers', 'id')
+}
+
+# Function to perform incremental load from CSV to Snowflake
+def incremental_load_csv_to_snowflake(csv_path, table_name, timestamp_col, conn_params):
+    # Read the new data from CSV
+    df = pd.read_csv(f'/mnt/data/{csv_path}')
+    df.fillna(np.nan, inplace=True)  # Handling the  missing values
+
+    # Connect to Snowflake
+    with connect(**conn_params) as conn:
+        # Get the latest timestamp from the Snowflake table
+        query = f"SELECT MAX({timestamp_col}) FROM {table_name};"
+        cur = conn.cursor().execute(query)
+        last_timestamp = cur.fetchone()[0]
+
+        # Filter for new records if `timestamp_col` is a datetime
+        if timestamp_col != 'id':
+            df[timestamp_col] = pd.to_datetime(df[timestamp_col])
+            new_records_df = df[df[timestamp_col] > last_timestamp]
+        else:
+            new_records_df = df[df[timestamp_col] > last_timestamp]
+
+        if not new_records_df.empty:
+            # Write new records to Snowflake
+            write_pandas(conn, new_records_df, table_name)
+            print(f"Appended {len(new_records_df)} new records to {table_name} in Snowflake.")
+        else:
+            print(f"No new records to append to {table_name}.")
+
+# Incremental load for each CSV
+for csv_file, (table_name, timestamp_col) in csv_files.items():
+    incremental_load_csv_to_snowflake(csv_file, table_name, timestamp_col, conn_params)
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
