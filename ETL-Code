@@ -1,0 +1,63 @@
+Data Loading Script:
+
+import pandas as pd
+import snowflake.connector
+from sqlalchemy import create_engine
+import numpy as np
+
+# Set pandas display options
+pd.set_option('display.max_rows', None)
+pd.set_option('display.max_columns', None)
+
+# Snowflake connection parameters
+snowflake_account = ''
+snowflake_user = ''
+snowflake_password = ''
+snowflake_warehouse = ''
+snowflake_database = ''
+snowflake_schema = ''
+
+# CSV file paths
+users_csv_path = '/path/users.csv'
+orders_csv_path = '/path/orders.csv'
+order_items_csv_path = '/path/order_items.csv'
+products_csv_path = '/path/products.csv'
+events_csv_path = '/path/events.csv'
+inventory_items_csv_path = '/path/inventory_items.csv'
+distribution_centers_csv_path = '/path/distribution_centers.csv'
+
+# Initialize the Snowflake connection
+snowflake_conn = snowflake.connector.connect(
+    account=snowflake_account,
+    user=snowflake_user,
+    password=snowflake_password,
+    warehouse=snowflake_warehouse,
+    database=snowflake_database,
+    schema=snowflake_schema
+)
+
+# Create SQLAlchemy engine for Snowflake connection
+engine = create_engine(f'snowflake://{snowflake_user}:{snowflake_password}@{snowflake_account}/{snowflake_database}/{snowflake_schema}')
+
+# Function to load CSV data to Snowflake
+def load_csv_to_snowflake(csv_path, table_name):
+    df = pd.read_csv(csv_path)
+    
+    # Example transformation: Fill missing values
+    df.fillna(np.nan, inplace=True)
+    
+    # Load to Snowflake
+    df.to_sql(table_name, con=engine, if_exists='replace', index=False)
+    print(f"Data from {csv_path} loaded to Snowflake table: {table_name}")
+
+# Load data from CSV files to Snowflake
+load_csv_to_snowflake(users_csv_path, 'users')
+load_csv_to_snowflake(orders_csv_path, 'orders')
+load_csv_to_snowflake(order_items_csv_path, 'order_items')
+load_csv_to_snowflake(products_csv_path, 'products')
+load_csv_to_snowflake(events_csv_path, 'events')
+load_csv_to_snowflake(inventory_items_csv_path, 'inventory_items')
+load_csv_to_snowflake(distribution_centers_csv_path, 'distribution_centers')
+
+# Close the Snowflake connection
+snowflake_conn.close()
