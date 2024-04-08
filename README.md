@@ -30,7 +30,20 @@ The file "DataMart-SQL" provides the detailed queries for the data mart and the 
 
 Additional Features:
 
+When designing a customer segmentation data mart,  there were some additional features that I recommend including, along with reasons why they could be valuable. Some of them are:
 
+a) Customer Lifetime Value (CLV Decay in business terms)
+An estimation of the total value a business can expect from a single customer account throughout the business relationship.
+Reason: CLV helps in identifying high value customers over time, allowing for more targeted marketing strategies and resource allocation.
+b) Frequency of Purchases
+The number of purchases a customer makes within a given timeframe can  be included.
+Reason: Understanding purchase frequency can help in recognizing loyal customers and planning campaigns to increase retention or re-engage less active customers.
+c) Product Preferences
+Categorization of customers based on the types of products they purchase.
+Reason: Knowing product preferences allows for more targeted product recommendations and personalized marketing messages.
+d) Channel Preference
+The preferred communication or sales channel of the customer (e.g., email, social media, in-store).
+Reason: Channel preference can optimize the effectiveness of marketing campaigns by reaching customers through their preferred mediums.
 
 
 -----------------------------------------------------------------------------------------------------------------------------
