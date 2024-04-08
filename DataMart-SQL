@@ -1,0 +1,154 @@
+Considering our data model and the requirements, the below logic can be used to derive our desired data mart table.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Initially create the data mart schema:
+Data Mart Schema:
+
+CREATE TABLE customer_segmentation_data_mart (
+    user_id VARCHAR,
+    age INT,
+    country VARCHAR,
+    state VARCHAR,
+    nearest_distribution_center_id VARCHAR,
+    product_return_rate FLOAT,
+    customer_profit_level INT,
+    most_frequent_event_type VARCHAR
+);
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE TABLE customer_data_mart AS
+SELECT
+    u.id AS user_id,
+    u.age,
+    u.country,
+    u.state,
+    (
+        SELECT d.id
+        FROM distribution_centers d
+        ORDER BY
+            POWER(SIN((d.latitude - u.latitude) * PI() / 360), 2) +
+            COS(u.latitude * PI() / 180) * COS(d.latitude * PI() / 180) *
+            POWER(SIN((d.longitude - u.longitude) * PI() / 360), 2)
+        LIMIT 1
+    ) AS nearest_distribution_center_id,
+    COALESCE(return_rate.return_rate, 0) AS product_return_rate,
+    CASE 
+        WHEN COALESCE(purchase.total_spent, 0) <= 50 THEN 'Level 1'
+        WHEN COALESCE(purchase.total_spent, 0) > 50 AND COALESCE(purchase.total_spent, 0) < 150 THEN 'Level 2'
+        ELSE 'Level 3'
+    END AS customer_profit_level,
+    engagement.most_frequent_event_type
+FROM
+    users u
+LEFT JOIN
+    (
+        SELECT
+            o.user_id,
+            IFNULL(SUM(CASE WHEN o.status = 'returned' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 0) AS return_rate
+        FROM
+            orders o
+        WHERE
+            o.created_at >= DATEADD(year, -1, CURRENT_DATE)
+        GROUP BY
+            o.user_id
+    ) return_rate ON u.id = return_rate.user_id
+LEFT JOIN
+    (
+        SELECT
+            oi.user_id,
+            SUM(oi.sale_price) AS total_spent
+        FROM
+            order_items oi
+        JOIN
+            orders o ON oi.order_id = o.order_id
+        WHERE
+            o.created_at >= DATEADD(year, -1, CURRENT_DATE)
+        GROUP BY
+            oi.user_id
+    ) purchase ON u.id = purchase.user_id
+LEFT JOIN
+    (
+        SELECT
+            e.user_id,
+            e.event_type AS most_frequent_event_type
+        FROM
+            (
+                SELECT
+                    e.user_id,
+                    e.event_type,
+                    ROW_NUMBER() OVER(PARTITION BY e.user_id ORDER BY COUNT(e.event_type) DESC) AS rn
+                FROM
+                    events e
+                GROUP BY
+                    e.user_id, e.event_type
+            ) ranked
+        WHERE
+            ranked.rn = 1
+    ) engagement ON u.id = engagement.user_id;
+.............................................................................................................................................................
+
+The above query logic can be tested by using the initial individual queries for the metrics:
+1. Testing Nearest Distribution Center
+SELECT 
+    u.id AS user_id,
+    d.id AS distribution_center_id,
+    d.name,
+    MIN(
+        POWER(SIN((d.latitude - u.latitude) * PI() / 360), 2) +
+        COS(u.latitude * PI() / 180) * COS(d.latitude * PI() / 180) *
+        POWER(SIN((d.longitude - u.longitude) * PI() / 360), 2)
+    ) AS distance
+FROM users u
+CROSS JOIN distribution_centers d
+WHERE u.id = 1
+GROUP BY u.id, d.id, d.name
+ORDER BY distance
+LIMIT 1;
+
+
+
+2. Testing Product Return Rate
+
+SELECT
+    o.user_id,
+    IFNULL(SUM(CASE WHEN o.status = 'returned' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 0) AS return_rate
+FROM
+    orders o
+WHERE
+    o.created_at >= DATEADD(year, -1, CURRENT_DATE)
+GROUP BY
+    o.user_id;
+	
+	
+3. Testing Customer Profit Level
+
+SELECT 
+    oi.user_id,
+    SUM(oi.sale_price) AS total_spent,
+    CASE
+        WHEN SUM(oi.sale_price) <= 50 THEN 'Level 1'
+        WHEN SUM(oi.sale_price) > 50 AND SUM(oi.sale_price) < 150 THEN 'Level 2'
+        ELSE 'Level 3'
+    END AS profit_level
+FROM orders o
+JOIN order_items oi ON o.order_id = oi.order_id
+WHERE o.created_at >= DATEADD(YEAR, -1, CURRENT_DATE)
+GROUP BY oi.user_id;
+
+
+4. Testing Most Frequent Event Type
+
+WITH event_counts AS (
+    SELECT 
+        user_id,
+        event_type,
+        COUNT(*) AS count,
+        ROW_NUMBER() OVER(PARTITION BY user_id ORDER BY COUNT(*) DESC) AS rank
+    FROM events
+    GROUP BY user_id, event_type
+)
+SELECT 
+    user_id,
+    event_type AS most_frequent_event_type
+FROM event_counts
+WHERE rank = 1;
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
